@@ -183,6 +183,27 @@ func TestEinoRunErrorHandlerIterationLimitProgress(t *testing.T) {
 	}
 }
 
+func TestEinoRunErrorHandlerRecoverableIterationLimitDoesNotEmitError(t *testing.T) {
+	var events []string
+	err := errors.New("maximum iteration reached")
+
+	got := newEinoRunErrorHandler(einoRunErrorHandlerConfig{
+		ConversationID:        "conv-1",
+		OrchMode:              "eino_single",
+		RecoverIterationLimit: true,
+		Progress: func(eventType, _ string, _ interface{}) {
+			events = append(events, eventType)
+		},
+	}).Handle(err)
+
+	if !errors.Is(got, err) {
+		t.Fatalf("err = %v", got)
+	}
+	if len(events) != 1 || events[0] != "iteration_limit_reached" {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
 func TestEinoRunErrorHandlerNilSafe(t *testing.T) {
 	var h *einoRunErrorHandler
 	if h.Handle(nil) != nil {

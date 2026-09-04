@@ -10,28 +10,31 @@ import (
 )
 
 type einoRunErrorHandler struct {
-	conversationID       string
-	orchMode             string
-	progress             func(eventType, message string, data interface{})
-	pending              *einoPendingToolCalls
-	nativeCancelFallback func() error
+	conversationID        string
+	orchMode              string
+	progress              func(eventType, message string, data interface{})
+	pending               *einoPendingToolCalls
+	nativeCancelFallback  func() error
+	recoverIterationLimit bool
 }
 
 type einoRunErrorHandlerConfig struct {
-	ConversationID       string
-	OrchMode             string
-	Progress             func(eventType, message string, data interface{})
-	Pending              *einoPendingToolCalls
-	NativeCancelFallback func() error
+	ConversationID        string
+	OrchMode              string
+	Progress              func(eventType, message string, data interface{})
+	Pending               *einoPendingToolCalls
+	NativeCancelFallback  func() error
+	RecoverIterationLimit bool
 }
 
 func newEinoRunErrorHandler(cfg einoRunErrorHandlerConfig) *einoRunErrorHandler {
 	return &einoRunErrorHandler{
-		conversationID:       cfg.ConversationID,
-		orchMode:             cfg.OrchMode,
-		progress:             cfg.Progress,
-		pending:              cfg.Pending,
-		nativeCancelFallback: cfg.NativeCancelFallback,
+		conversationID:        cfg.ConversationID,
+		orchMode:              cfg.OrchMode,
+		progress:              cfg.Progress,
+		pending:               cfg.Pending,
+		nativeCancelFallback:  cfg.NativeCancelFallback,
+		recoverIterationLimit: cfg.RecoverIterationLimit,
 	}
 }
 
@@ -65,6 +68,9 @@ func (h *einoRunErrorHandler) Handle(runErr error) error {
 				"source":         "eino",
 				"orchestration":  h.orchMode,
 			})
+		}
+		if h.recoverIterationLimit {
+			return runErr
 		}
 		h.emitError(runErr, "iteration_limit")
 		return runErr

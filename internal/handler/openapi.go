@@ -939,6 +939,9 @@ func (h *OpenAPIHandler) GetOpenAPISpec(c *gin.Context) {
 					"description": "Agent 运行与外部 MCP 防卡死保护配置",
 					"properties": map[string]interface{}{
 						"max_iterations":                         map[string]interface{}{"type": "integer", "description": "最大迭代次数"},
+						"task_timeout_minutes":                   map[string]interface{}{"type": "integer", "description": "单代理单次任务总预算（分钟）"},
+						"finalization_reserved_minutes":          map[string]interface{}{"type": "integer", "description": "单代理为收尾报告预留的时间（分钟）"},
+						"finalization_max_iterations":            map[string]interface{}{"type": "integer", "description": "无工具收尾报告最多模型轮次"},
 						"tool_timeout_minutes":                   map[string]interface{}{"type": "integer", "description": "单次工具执行硬超时（分钟）"},
 						"tool_wait_timeout_seconds":              map[string]interface{}{"type": "integer", "description": "工具单轮等待秒数；到时返回 execution_id，worker 继续后台执行"},
 						"external_mcp_max_concurrent_per_server": map[string]interface{}{"type": "integer", "description": "单个外部 MCP server 并发上限；0=默认2；负数=不限制"},

@@ -1034,6 +1034,9 @@ type DatabaseConfig struct {
 
 type AgentConfig struct {
 	MaxIterations                      int `yaml:"max_iterations" json:"max_iterations"`
+	TaskTimeoutMinutes                 int `yaml:"task_timeout_minutes" json:"task_timeout_minutes"`                                     // 单代理单次任务总预算（分钟），包含调查和收尾报告；0 使用默认 15
+	FinalizationReservedMinutes        int `yaml:"finalization_reserved_minutes" json:"finalization_reserved_minutes"`                   // 单代理为收尾报告预留的分钟数；0 使用默认 3
+	FinalizationMaxIterations          int `yaml:"finalization_max_iterations" json:"finalization_max_iterations"`                       // 无工具收尾报告最多模型轮次；0 使用默认 2
 	ToolTimeoutMinutes                 int `yaml:"tool_timeout_minutes" json:"tool_timeout_minutes"`                                     // 单次工具执行最大时长（分钟），超时自动终止，防止长时间挂起；0 表示不限制（不推荐）
 	ToolWaitTimeoutSeconds             int `yaml:"tool_wait_timeout_seconds" json:"tool_wait_timeout_seconds"`                           // 工具本轮等待秒数；到时返回 execution_id，worker 继续后台执行；0 表示等到完成
 	ExternalMCPMaxConcurrentPerServer  int `yaml:"external_mcp_max_concurrent_per_server" json:"external_mcp_max_concurrent_per_server"` // 单个外部 MCP server 同时运行的工具数；0 表示默认 2
@@ -1872,7 +1875,10 @@ func Default() *Config {
 		},
 		OpenAI: OpenAIConfig{},
 		Agent: AgentConfig{
-			MaxIterations:                      30,  // 默认最大迭代次数
+			MaxIterations:                      20,  // 默认调查最多 20 次模型调用
+			TaskTimeoutMinutes:                 15,  // 单代理单次任务总预算 15 分钟
+			FinalizationReservedMinutes:        3,   // 最后 3 分钟只生成报告
+			FinalizationMaxIterations:          2,   // 收尾报告最多 2 次模型调用
 			ToolTimeoutMinutes:                 10,  // 单次工具执行默认最多 10 分钟，避免异常长时间占用
 			ToolWaitTimeoutSeconds:             60,  // 外部 MCP 工具单轮最多等待 60 秒，超时后返回 execution_id 可继续等待
 			ExternalMCPMaxConcurrentPerServer:  2,   // 单个外部 MCP server 默认最多 2 个工具同时执行

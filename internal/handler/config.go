@@ -735,6 +735,9 @@ type UpdateConfigRequest struct {
 // 避免旧版「整包替换 *AgentConfig」时，未传的整型字段被反序列化为 0 误覆盖（例如 tool_timeout_minutes 变成 0）。
 type AgentConfigUpdate struct {
 	MaxIterations                      *int    `json:"max_iterations,omitempty"`
+	TaskTimeoutMinutes                 *int    `json:"task_timeout_minutes,omitempty"`
+	FinalizationReservedMinutes        *int    `json:"finalization_reserved_minutes,omitempty"`
+	FinalizationMaxIterations          *int    `json:"finalization_max_iterations,omitempty"`
 	ToolTimeoutMinutes                 *int    `json:"tool_timeout_minutes,omitempty"`
 	ToolWaitTimeoutSeconds             *int    `json:"tool_wait_timeout_seconds,omitempty"`
 	ExternalMCPMaxConcurrentPerServer  *int    `json:"external_mcp_max_concurrent_per_server,omitempty"`
@@ -750,6 +753,15 @@ func applyAgentConfigUpdate(dst *config.AgentConfig, src *AgentConfigUpdate) {
 	}
 	if src.MaxIterations != nil {
 		dst.MaxIterations = *src.MaxIterations
+	}
+	if src.TaskTimeoutMinutes != nil {
+		dst.TaskTimeoutMinutes = *src.TaskTimeoutMinutes
+	}
+	if src.FinalizationReservedMinutes != nil {
+		dst.FinalizationReservedMinutes = *src.FinalizationReservedMinutes
+	}
+	if src.FinalizationMaxIterations != nil {
+		dst.FinalizationMaxIterations = *src.FinalizationMaxIterations
 	}
 	if src.ToolTimeoutMinutes != nil {
 		dst.ToolTimeoutMinutes = *src.ToolTimeoutMinutes
@@ -855,6 +867,9 @@ func (h *ConfigHandler) UpdateConfig(c *gin.Context) {
 		applyAgentConfigUpdate(&h.config.Agent, req.Agent)
 		h.logger.Info("更新Agent配置",
 			zap.Int("max_iterations", h.config.Agent.MaxIterations),
+			zap.Int("task_timeout_minutes", h.config.Agent.TaskTimeoutMinutes),
+			zap.Int("finalization_reserved_minutes", h.config.Agent.FinalizationReservedMinutes),
+			zap.Int("finalization_max_iterations", h.config.Agent.FinalizationMaxIterations),
 			zap.Int("tool_timeout_minutes", h.config.Agent.ToolTimeoutMinutes),
 			zap.Int("tool_wait_timeout_seconds", h.config.Agent.ToolWaitTimeoutSeconds),
 			zap.Int("external_mcp_max_concurrent_per_server", h.config.Agent.ExternalMCPMaxConcurrentPerServer),
@@ -1866,6 +1881,9 @@ func updateAgentConfig(doc *yaml.Node, agent config.AgentConfig) {
 	root := doc.Content[0]
 	agentNode := ensureMap(root, "agent")
 	setIntInMap(agentNode, "max_iterations", agent.MaxIterations)
+	setIntInMap(agentNode, "task_timeout_minutes", agent.TaskTimeoutMinutes)
+	setIntInMap(agentNode, "finalization_reserved_minutes", agent.FinalizationReservedMinutes)
+	setIntInMap(agentNode, "finalization_max_iterations", agent.FinalizationMaxIterations)
 	setIntInMap(agentNode, "tool_timeout_minutes", agent.ToolTimeoutMinutes)
 	setIntInMap(agentNode, "tool_wait_timeout_seconds", agent.ToolWaitTimeoutSeconds)
 	setIntInMap(agentNode, "external_mcp_max_concurrent_per_server", agent.ExternalMCPMaxConcurrentPerServer)
