@@ -1,5 +1,7 @@
 const ASSET_PAGE_SIZE_KEY = 'cyberstrike.asset_page_size';
 const ASSET_SAVED_VIEWS_KEY = 'cyberstrike.asset_saved_views';
+const ASSET_SCAN_DEFAULT_ROLE = '信息收集';
+const ASSET_SCAN_AGENT_MODES = new Set(['eino_single', 'deep', 'plan_execute', 'supervisor']);
 function getAssetPageSize() {
     try {
         const value = Number(localStorage.getItem(ASSET_PAGE_SIZE_KEY));
@@ -1068,6 +1070,88 @@ function assetScanPromptDefault() {
     return assetT('assets.defaultScanPrompt', '请对资产 {{target}}（资产ID：{{asset_id}}）进行授权安全扫描，优先检查暴露服务、已知漏洞、弱口令和常见 Web 风险；通过 record_vulnerability 保存确认的漏洞，完成后调用 complete_asset_scan(id={{asset_id}}) 回写上次扫描时间和相关漏洞。', placeholders);
 }
 
+function setAssetScanMultiAgentAvailability(enabled) {
+    const select = document.getElementById('asset-scan-agent-mode');
+    if (!select) return;
+    Array.from(select.options).forEach(option => {
+        option.disabled = option.value !== 'eino_single' && !enabled;
+    });
+    if (!enabled && select.value !== 'eino_single') select.value = 'eino_single';
+    const hint = document.getElementById('asset-scan-agent-mode-hint');
+    if (hint) {
+        hint.textContent = enabled
+            ? assetT('assets.scanAgentModeAvailable', '多代理已启用，可使用全部执行模式。')
+            : assetT('assets.scanAgentModeHint', '多代理模式需先在系统设置中启用。');
+    }
+}
+
+async function prepareAssetScanTaskOptions() {
+    const agentModeSelect = document.getElementById('asset-scan-agent-mode');
+    const roleSelect = document.getElementById('asset-scan-role');
+    const concurrencyInput = document.getElementById('asset-scan-concurrency');
+    if (!agentModeSelect || !roleSelect || !concurrencyInput) return;
+
+    agentModeSelect.value = 'eino_single';
+    roleSelect.innerHTML = '';
+    const fallbackOption = document.createElement('option');
+    fallbackOption.value = ASSET_SCAN_DEFAULT_ROLE;
+    fallbackOption.textContent = assetT('assets.scanDefaultRole', ASSET_SCAN_DEFAULT_ROLE);
+    roleSelect.appendChild(fallbackOption);
+    roleSelect.value = ASSET_SCAN_DEFAULT_ROLE;
+    concurrencyInput.value = '2';
+
+    let multiAgentPublic = window.__csaiMultiAgentPublic || null;
+    try {
+        const [rolesResponse, configResponse] = await Promise.all([
+            apiFetch('/api/roles'),
+            multiAgentPublic ? Promise.resolve(null) : apiFetch('/api/config')
+        ]);
+        if (rolesResponse.ok) {
+            const data = await rolesResponse.json();
+            const enabledRoles = (Array.isArray(data.roles) ? data.roles : [])
+                .filter(role => role && role.name && role.name !== '默认' && role.enabled !== false)
+                .sort((a, b) => {
+                    if (a.name === ASSET_SCAN_DEFAULT_ROLE) return -1;
+                    if (b.name === ASSET_SCAN_DEFAULT_ROLE) return 1;
+                    return a.name.localeCompare(b.name, 'zh-CN');
+                });
+            const seen = new Set([ASSET_SCAN_DEFAULT_ROLE]);
+            enabledRoles.forEach(role => {
+                if (seen.has(role.name)) return;
+                seen.add(role.name);
+                const option = document.createElement('option');
+                option.value = role.name;
+                option.textContent = role.name;
+                roleSelect.appendChild(option);
+            });
+            roleSelect.value = ASSET_SCAN_DEFAULT_ROLE;
+        }
+        if (configResponse && configResponse.ok) {
+            const config = await configResponse.json();
+            multiAgentPublic = config.multi_agent || null;
+            window.__csaiMultiAgentPublic = multiAgentPublic;
+        }
+    } catch (error) {
+        console.warn('加载资产扫描任务配置失败:', error);
+    }
+    setAssetScanMultiAgentAvailability(!!(multiAgentPublic && multiAgentPublic.enabled));
+}
+
+function assetScanConcurrencyValue() {
+    const input = document.getElementById('asset-scan-concurrency');
+    const parsed = Number.parseInt(input ? input.value : '', 10);
+    const value = Number.isFinite(parsed) ? Math.min(8, Math.max(1, parsed)) : 2;
+    if (input) input.value = String(value);
+    return value;
+}
+
+function assetScanAgentModeValue() {
+    const select = document.getElementById('asset-scan-agent-mode');
+    const value = select ? select.value : 'eino_single';
+    const selected = select && select.selectedOptions ? select.selectedOptions[0] : null;
+    return ASSET_SCAN_AGENT_MODES.has(value) && !(selected && selected.disabled) ? value : 'eino_single';
+}
+
 function openAssetScanModal(mode, index) {
     const one = Number.isInteger(index) ? assetPageState.items[index] : null;
     const assets = one ? [one] : Array.from(assetPageState.selected.values());
@@ -1085,6 +1169,9 @@ function openAssetScanModal(mode, index) {
     document.getElementById('asset-scan-hint').textContent = assetT('assets.promptHint', '可使用 {{asset_id}}、{{target}}、{{host}}、{{ip}}、{{domain}}、{{port}} 占位符；创建任务时会为每个资产生成一条任务。', { asset_id: '{{asset_id}}', target: '{{target}}', host: '{{host}}', ip: '{{ip}}', domain: '{{domain}}', port: '{{port}}' });
     const executeWrap = document.getElementById('asset-scan-execute-wrap');
     executeWrap.hidden = !taskMode;
+    const taskOptions = document.getElementById('asset-scan-task-options');
+    taskOptions.hidden = !taskMode;
+    if (taskMode) void prepareAssetScanTaskOptions();
     document.getElementById('asset-scan-submit').textContent = taskMode ? assetT('assets.confirmCreate', '创建任务') : assetT('assets.confirmSend', '确认发送');
     if (typeof openAppModal === 'function') openAppModal('asset-scan-modal');
     else document.getElementById('asset-scan-modal').style.display = 'flex';
@@ -1158,7 +1245,10 @@ async function sendAssetsToChat(assets, template) {
 async function createAssetScanTasks(assets, template) {
     const tasks = assets.map(asset => renderAssetScanPrompt(template, asset));
     const executeNow = !!document.getElementById('asset-scan-execute-now').checked;
-    const response = await apiFetch('/api/batch-tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: assetT('assets.scanQueueTitle', '资产批量扫描'), tasks, executeNow, projectId: commonAssetProjectId(assets), concurrency: 1, agentMode: 'eino_single', scheduleMode: 'manual' }) });
+    const agentMode = assetScanAgentModeValue();
+    const role = document.getElementById('asset-scan-role')?.value || ASSET_SCAN_DEFAULT_ROLE;
+    const concurrency = assetScanConcurrencyValue();
+    const response = await apiFetch('/api/batch-tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: assetT('assets.scanQueueTitle', '资产批量扫描'), tasks, executeNow, projectId: commonAssetProjectId(assets), agentMode, role, concurrency, scheduleMode: 'manual' }) });
     if (!response.ok) throw new Error(await response.text());
     const result = await response.json();
     const queueTasks = result.queue && Array.isArray(result.queue.tasks) ? result.queue.tasks : [];
