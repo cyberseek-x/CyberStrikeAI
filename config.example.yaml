@@ -133,6 +133,13 @@ agent:
   # system_prompt_path: prompts/single-agent.md # 可选：单代理系统提示文件（相对本配置文件所在目录）；非空且可读时替换内置提示
 
   system_prompt_path: ""
+# 资产发现策略（可在系统设置中修改）
+asset_discovery:
+  scan_fresh_days: 7 # 同一项目内在此天数内已扫描的资产默认复用结果
+  excluded_ip_ranges:
+    - cidr: 198.18.0.0/15
+      reason: VPN 或代理映射地址
+      enabled: true
 # 人机协同（HITL）全局白名单：此处列出的工具始终免审批，与对话页「白名单工具（免审批，逗号分隔）」合并为并集；侧栏「应用」可合并写入本列表并立即生效。
 # 非白名单工具在审批方=审计 Agent 时，按会话 HITL 模式选用提示词：
 #   approval → audit_agent_prompt
