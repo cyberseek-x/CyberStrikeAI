@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"cyberstrike-ai/internal/authctx"
+	"cyberstrike-ai/internal/config"
 	"cyberstrike-ai/internal/database"
 	"cyberstrike-ai/internal/mcp"
 	"cyberstrike-ai/internal/mcp/builtin"
@@ -18,7 +19,7 @@ import (
 
 const agentAssetPageSizeMax = 50
 
-func registerAssetTools(server *mcp.Server, db *database.DB, logger *zap.Logger) {
+func registerAssetTools(server *mcp.Server, db *database.DB, cfg *config.Config, logger *zap.Logger) {
 	if server == nil || db == nil {
 		return
 	}
@@ -32,6 +33,26 @@ func registerAssetTools(server *mcp.Server, db *database.DB, logger *zap.Logger)
 		InputSchema: map[string]interface{}{"type": "object", "properties": properties},
 	}, func(ctx context.Context, args map[string]interface{}) (*mcp.ToolResult, error) {
 		asset, err := assetFromCreateArgs(args)
+		if err != nil {
+			return textResult("错误: "+err.Error(), true), nil
+		}
+		projectID, projectScoped, err := agentAssetProjectScope(db, ctx)
+		if err != nil {
+			return textResult("错误: "+err.Error(), true), nil
+		}
+		if projectScoped {
+			if asset.ProjectID == "" {
+				asset.ProjectID = projectID
+			} else if asset.ProjectID != projectID {
+				return textResult("错误: 资产项目与当前对话绑定项目不一致", true), nil
+			}
+		}
+		filteredIP := strings.TrimSpace(asset.IP)
+		policy := config.DefaultAssetDiscoveryConfig()
+		if cfg != nil {
+			policy = cfg.AssetDiscovery
+		}
+		matchedRule, err := applyAssetDiscoveryPolicy(asset, policy)
 		if err != nil {
 			return textResult("错误: "+err.Error(), true), nil
 		}
@@ -52,7 +73,13 @@ func registerAssetTools(server *mcp.Server, db *database.DB, logger *zap.Logger)
 		if result.Updated > 0 {
 			action = "updated"
 		}
-		return assetJSONResult(map[string]interface{}{"action": action, "asset": assetToolDetail(saved)})
+		response := map[string]interface{}{"action": action, "asset": assetToolDetail(saved)}
+		if matchedRule != nil {
+			response["filtered_ip"] = filteredIP
+			response["filter_cidr"] = matchedRule.CIDR
+			response["filter_reason"] = matchedRule.Reason
+		}
+		return assetJSONResult(response)
 	})
 
 	server.RegisterTool(mcp.Tool{
