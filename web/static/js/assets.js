@@ -1101,12 +1101,15 @@ async function prepareAssetScanTaskOptions() {
     concurrencyInput.value = '2';
 
     let multiAgentPublic = window.__csaiMultiAgentPublic || null;
+    setAssetScanMultiAgentAvailability(!!(multiAgentPublic && multiAgentPublic.enabled));
+    const [rolesResult, configResult] = await Promise.allSettled([
+        apiFetch('/api/roles'),
+        apiFetch('/api/config')
+    ]);
     try {
-        const [rolesResponse, configResponse] = await Promise.all([
-            apiFetch('/api/roles'),
-            multiAgentPublic ? Promise.resolve(null) : apiFetch('/api/config')
-        ]);
-        if (rolesResponse.ok) {
+        const rolesResponse = rolesResult.status === 'fulfilled' ? rolesResult.value : null;
+        const configResponse = configResult.status === 'fulfilled' ? configResult.value : null;
+        if (rolesResponse && rolesResponse.ok) {
             const data = await rolesResponse.json();
             const enabledRoles = (Array.isArray(data.roles) ? data.roles : [])
                 .filter(role => role && role.name && role.name !== '默认' && role.enabled !== false)
