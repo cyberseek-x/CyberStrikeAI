@@ -282,6 +282,28 @@ func (h *AgentHandler) EinoSingleAgentLoopStream(c *gin.Context) {
 				autoCancelledPendingExecutionIDs = mergeMCPExecutionIDLists(autoCancelledPendingExecutionIDs, cancelled)
 				decision = h.decideAgentRunForDeliveryWithPolicy(conversationID, assistantMessageID, "eino_single", result, cumulativeMCPExecutionIDs, requestRequiresExecutionEvidence(&req))
 			}
+			if !forcedReportAttempted && shouldForceEinoSingleReportAfterDecision(decision) {
+				forcedReportAttempted = true
+				h.persistEinoAgentTraceForResume(conversationID, result)
+				if hist, histErr := h.loadHistoryFromAgentTrace(conversationID); histErr == nil && len(hist) > 0 {
+					curHistory = hist
+				} else if h.logger != nil {
+					h.logger.Warn("最终回复内容不足，恢复轨迹生成报告失败，将使用当前历史",
+						zap.String("conversationId", conversationID), zap.Error(histErr))
+				}
+				curFinalMessage = einoSingleForcedReportInstruction
+				activeRunCfg, activeRoleTools = buildEinoSingleReportRun(runCfg, budget.finalizationMaxIterations)
+				mainIterationOffset += segmentMainIterationMax
+				timeoutCancel()
+				activeDeadline = time.Now().Add(budget.finalization)
+				taskCtx, timeoutCancel = context.WithDeadline(baseCtx, activeDeadline)
+				progressCallback("forced_report_generation", "最终回复内容不足，正在根据已有证据重新生成完整报告…", map[string]interface{}{
+					"conversationId":  conversationID,
+					"reason":          "insufficient_final_response",
+					"reportBudgetSec": int(budget.finalization.Seconds()),
+				})
+				continue
+			}
 			if !forcedReportAttempted && h.tryAutoContinueAfterFinalization(taskCtx, conversationID, result, decision, &finalizationAutoContinueAttempt, &curHistory, &curFinalMessage, progressCallback) {
 				mainIterationOffset += segmentMainIterationMax
 				timeoutCancel()
@@ -581,6 +603,27 @@ func (h *AgentHandler) EinoSingleAgentLoop(c *gin.Context) {
 		if cancelled := h.cleanupPendingToolExecutionsAfterIteration(taskCtx, prep.ConversationID, decision, progressCallback); len(cancelled) > 0 {
 			autoCancelledPendingExecutionIDs = mergeMCPExecutionIDLists(autoCancelledPendingExecutionIDs, cancelled)
 			decision = h.decideAgentRunForDeliveryWithPolicy(prep.ConversationID, prep.AssistantMessageID, "eino_single", result, cumulativeMCPExecutionIDs, requestRequiresExecutionEvidence(&req))
+		}
+		if !forcedReportAttempted && shouldForceEinoSingleReportAfterDecision(decision) {
+			forcedReportAttempted = true
+			h.persistEinoAgentTraceForResume(prep.ConversationID, result)
+			if hist, histErr := h.loadHistoryFromAgentTrace(prep.ConversationID); histErr == nil && len(hist) > 0 {
+				curHist = hist
+			} else if h.logger != nil {
+				h.logger.Warn("最终回复内容不足，恢复轨迹生成报告失败，将使用当前历史",
+					zap.String("conversationId", prep.ConversationID), zap.Error(histErr))
+			}
+			curMsg = einoSingleForcedReportInstruction
+			activeRunCfg, activeRoleTools = buildEinoSingleReportRun(runCfg, budget.finalizationMaxIterations)
+			timeoutCancel()
+			taskCtx, timeoutCancel = context.WithTimeout(baseCtx, budget.finalization)
+			progressCallback = h.createProgressCallback(taskCtx, cancelWithCause, prep.ConversationID, prep.AssistantMessageID, progressCallbackRaw)
+			progressCallback("forced_report_generation", "最终回复内容不足，正在根据已有证据重新生成完整报告…", map[string]interface{}{
+				"conversationId":  prep.ConversationID,
+				"reason":          "insufficient_final_response",
+				"reportBudgetSec": int(budget.finalization.Seconds()),
+			})
+			continue
 		}
 		if !forcedReportAttempted && h.tryAutoContinueAfterFinalization(taskCtx, prep.ConversationID, result, decision, &finalizationAutoContinueAttempt, &curHist, &curMsg, progressCallback) {
 			continue

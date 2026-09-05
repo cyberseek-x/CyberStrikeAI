@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"cyberstrike-ai/internal/agentfinalizer"
 	"cyberstrike-ai/internal/config"
 	"cyberstrike-ai/internal/multiagent"
 )
@@ -54,6 +55,12 @@ func shouldForceEinoSingleReport(runErr, taskCtxErr error) bool {
 	return multiagent.IsEinoIterationLimitError(runErr) ||
 		errors.Is(runErr, context.DeadlineExceeded) ||
 		errors.Is(taskCtxErr, context.DeadlineExceeded)
+}
+
+func shouldForceEinoSingleReportAfterDecision(d agentfinalizer.Decision) bool {
+	return !d.Finalizable &&
+		d.CompletionReason == agentfinalizer.ReasonEmptyResponse &&
+		len(d.EvidenceRefs) > 0
 }
 
 func buildEinoSingleReportRun(source *config.Config, maxIterations int) (*config.Config, []string) {

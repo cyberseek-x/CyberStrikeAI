@@ -2,6 +2,7 @@ package agentfinalizer
 
 import (
 	"strings"
+	"unicode"
 
 	"cyberstrike-ai/internal/database"
 	"cyberstrike-ai/internal/mcp"
@@ -186,8 +187,16 @@ func isEmptyCandidate(s string) bool {
 	if s == "" {
 		return true
 	}
-	return strings.Contains(s, "no assistant text was captured") ||
-		strings.Contains(s, "未捕获到助手文本输出")
+	if strings.Contains(s, "no assistant text was captured") ||
+		strings.Contains(s, "未捕获到助手文本输出") {
+		return true
+	}
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			return false
+		}
+	}
+	return true
 }
 
 func evidenceRefs(ids []string) []string {

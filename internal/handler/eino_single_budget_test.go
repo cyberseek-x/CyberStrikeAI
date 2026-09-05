@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"cyberstrike-ai/internal/agentfinalizer"
 	"cyberstrike-ai/internal/config"
 )
 
@@ -104,5 +105,30 @@ func TestApplyAgentConfigUpdateBudgetFields(t *testing.T) {
 	}
 	if dst.MaxIterations != 30 || dst.ToolTimeoutMinutes != 10 {
 		t.Fatalf("unrelated fields changed = %#v", dst)
+	}
+}
+
+func TestShouldForceEinoSingleReportAfterDecision(t *testing.T) {
+	insufficient := agentfinalizer.Decision{
+		Status:           agentfinalizer.StatusBlocked,
+		CompletionReason: agentfinalizer.ReasonEmptyResponse,
+		EvidenceRefs:     []string{"mcp_execution:run-ok"},
+	}
+	if !shouldForceEinoSingleReportAfterDecision(insufficient) {
+		t.Fatal("formatting-only final response after tool execution must force report generation")
+	}
+	if shouldForceEinoSingleReportAfterDecision(agentfinalizer.Decision{
+		Status:           agentfinalizer.StatusBlocked,
+		CompletionReason: agentfinalizer.ReasonEmptyResponse,
+	}) {
+		t.Fatal("an empty informational response without tool evidence must not enter the report phase")
+	}
+	if shouldForceEinoSingleReportAfterDecision(agentfinalizer.Decision{
+		Status:           agentfinalizer.StatusCompleted,
+		CompletionReason: agentfinalizer.ReasonVerified,
+		Finalizable:      true,
+		EvidenceRefs:     []string{"mcp_execution:run-ok"},
+	}) {
+		t.Fatal("a valid final response must not be regenerated")
 	}
 }
