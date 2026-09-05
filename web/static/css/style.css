@@ -3810,6 +3810,62 @@ html[data-theme="dark"] .sidebar-content:hover::-webkit-scrollbar-thumb:hover {
     }
 }
 
+.asset-discovery-settings {
+    padding: 14px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+}
+
+.asset-discovery-range-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.asset-discovery-range-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.asset-discovery-range-row {
+    display: grid;
+    grid-template-columns: minmax(170px, 1fr) minmax(180px, 1.4fr) auto 32px;
+    align-items: center;
+    gap: 8px;
+}
+
+.asset-discovery-range-row input[type="text"] {
+    min-width: 0;
+}
+
+.asset-discovery-range-enabled {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.asset-discovery-range-delete {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary, #64748b);
+    cursor: pointer;
+}
+
+@media (max-width: 760px) {
+    .asset-discovery-range-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 .message {
     margin-bottom: 24px;
     display: flex;

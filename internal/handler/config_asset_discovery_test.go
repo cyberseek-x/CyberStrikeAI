@@ -1,12 +1,36 @@
 package handler
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"cyberstrike-ai/internal/config"
 
 	"gopkg.in/yaml.v3"
 )
+
+func TestAssetDiscoverySettingsContract(t *testing.T) {
+	paths := []string{"../../web/templates/index.html", "../../web/static/js/settings.js"}
+	var source strings.Builder
+	for _, path := range paths {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		source.Write(b)
+	}
+	for _, marker := range []string{
+		`id="asset-discovery-fresh-days"`,
+		`id="asset-discovery-excluded-ranges"`,
+		`function renderAssetDiscoveryExcludedRanges`,
+		`asset_discovery:`,
+	} {
+		if !strings.Contains(source.String(), marker) {
+			t.Fatalf("missing %s", marker)
+		}
+	}
+}
 
 func TestUpdateAssetDiscoveryConfigWritesYAML(t *testing.T) {
 	doc := newEmptyYAMLDocument()
