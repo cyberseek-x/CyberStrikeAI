@@ -260,21 +260,22 @@ func (h *ConfigHandler) ApplyWechatRobotBinding(wc config.RobotWechatConfig) err
 
 // GetConfigResponse 获取配置响应
 type GetConfigResponse struct {
-	AI         config.AIConfig          `json:"ai"`
-	OpenAI     config.OpenAIConfig      `json:"openai"`
-	Vision     config.VisionConfig      `json:"vision"`
-	FOFA       config.FofaConfig        `json:"fofa"`
-	ZoomEye    config.SpaceSearchConfig `json:"zoomeye"`
-	Quake      config.SpaceSearchConfig `json:"quake"`
-	Shodan     config.SpaceSearchConfig `json:"shodan"`
-	MCP        config.MCPConfig         `json:"mcp"`
-	Tools      []ToolConfigInfo         `json:"tools"`
-	Agent      config.AgentConfig       `json:"agent"`
-	Hitl       config.HitlConfig        `json:"hitl,omitempty"`
-	Knowledge  config.KnowledgeConfig   `json:"knowledge"`
-	Robots     config.RobotsConfig      `json:"robots,omitempty"`
-	MultiAgent config.MultiAgentPublic  `json:"multi_agent,omitempty"`
-	C2         config.C2Public          `json:"c2"`
+	AI             config.AIConfig             `json:"ai"`
+	OpenAI         config.OpenAIConfig         `json:"openai"`
+	Vision         config.VisionConfig         `json:"vision"`
+	FOFA           config.FofaConfig           `json:"fofa"`
+	ZoomEye        config.SpaceSearchConfig    `json:"zoomeye"`
+	Quake          config.SpaceSearchConfig    `json:"quake"`
+	Shodan         config.SpaceSearchConfig    `json:"shodan"`
+	MCP            config.MCPConfig            `json:"mcp"`
+	Tools          []ToolConfigInfo            `json:"tools"`
+	Agent          config.AgentConfig          `json:"agent"`
+	AssetDiscovery config.AssetDiscoveryConfig `json:"asset_discovery"`
+	Hitl           config.HitlConfig           `json:"hitl,omitempty"`
+	Knowledge      config.KnowledgeConfig      `json:"knowledge"`
+	Robots         config.RobotsConfig         `json:"robots,omitempty"`
+	MultiAgent     config.MultiAgentPublic     `json:"multi_agent,omitempty"`
+	C2             config.C2Public             `json:"c2"`
 }
 
 // ToolConfigInfo 工具配置信息
@@ -370,21 +371,22 @@ func (h *ConfigHandler) GetConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, GetConfigResponse{
-		AI:         h.config.AI,
-		OpenAI:     h.config.OpenAI,
-		Vision:     h.config.Vision,
-		FOFA:       h.config.FOFA,
-		ZoomEye:    h.config.ZoomEye,
-		Quake:      h.config.Quake,
-		Shodan:     h.config.Shodan,
-		MCP:        h.config.MCP,
-		Tools:      tools,
-		Agent:      h.config.Agent,
-		Hitl:       h.config.Hitl,
-		Knowledge:  h.config.Knowledge,
-		C2:         h.config.C2.Public(),
-		Robots:     h.config.Robots,
-		MultiAgent: multiPub,
+		AI:             h.config.AI,
+		OpenAI:         h.config.OpenAI,
+		Vision:         h.config.Vision,
+		FOFA:           h.config.FOFA,
+		ZoomEye:        h.config.ZoomEye,
+		Quake:          h.config.Quake,
+		Shodan:         h.config.Shodan,
+		MCP:            h.config.MCP,
+		Tools:          tools,
+		Agent:          h.config.Agent,
+		AssetDiscovery: h.config.AssetDiscovery,
+		Hitl:           h.config.Hitl,
+		Knowledge:      h.config.Knowledge,
+		C2:             h.config.C2.Public(),
+		Robots:         h.config.Robots,
+		MultiAgent:     multiPub,
 	})
 }
 
@@ -714,21 +716,22 @@ func (h *ConfigHandler) GetTools(c *gin.Context) {
 
 // UpdateConfigRequest 更新配置请求
 type UpdateConfigRequest struct {
-	AI         *config.AIConfig            `json:"ai,omitempty"`
-	OpenAI     *config.OpenAIConfig        `json:"openai,omitempty"`
-	Vision     *config.VisionConfig        `json:"vision,omitempty"`
-	FOFA       *config.FofaConfig          `json:"fofa,omitempty"`
-	ZoomEye    *config.SpaceSearchConfig   `json:"zoomeye,omitempty"`
-	Quake      *config.SpaceSearchConfig   `json:"quake,omitempty"`
-	Shodan     *config.SpaceSearchConfig   `json:"shodan,omitempty"`
-	MCP        *config.MCPConfig           `json:"mcp,omitempty"`
-	Tools      []ToolEnableStatus          `json:"tools,omitempty"`
-	Agent      *AgentConfigUpdate          `json:"agent,omitempty"`
-	Hitl       *config.HitlConfig          `json:"hitl,omitempty"`
-	Knowledge  *config.KnowledgeConfig     `json:"knowledge,omitempty"`
-	Robots     *config.RobotsConfig        `json:"robots,omitempty"`
-	MultiAgent *config.MultiAgentAPIUpdate `json:"multi_agent,omitempty"`
-	C2         *config.C2APIUpdate         `json:"c2,omitempty"`
+	AI             *config.AIConfig             `json:"ai,omitempty"`
+	OpenAI         *config.OpenAIConfig         `json:"openai,omitempty"`
+	Vision         *config.VisionConfig         `json:"vision,omitempty"`
+	FOFA           *config.FofaConfig           `json:"fofa,omitempty"`
+	ZoomEye        *config.SpaceSearchConfig    `json:"zoomeye,omitempty"`
+	Quake          *config.SpaceSearchConfig    `json:"quake,omitempty"`
+	Shodan         *config.SpaceSearchConfig    `json:"shodan,omitempty"`
+	MCP            *config.MCPConfig            `json:"mcp,omitempty"`
+	Tools          []ToolEnableStatus           `json:"tools,omitempty"`
+	Agent          *AgentConfigUpdate           `json:"agent,omitempty"`
+	AssetDiscovery *config.AssetDiscoveryConfig `json:"asset_discovery,omitempty"`
+	Hitl           *config.HitlConfig           `json:"hitl,omitempty"`
+	Knowledge      *config.KnowledgeConfig      `json:"knowledge,omitempty"`
+	Robots         *config.RobotsConfig         `json:"robots,omitempty"`
+	MultiAgent     *config.MultiAgentAPIUpdate  `json:"multi_agent,omitempty"`
+	C2             *config.C2APIUpdate          `json:"c2,omitempty"`
 }
 
 // AgentConfigUpdate 用于 PATCH /api/config 的 agent 段：仅 JSON 中出现的字段（指针非 nil）覆盖内存配置。
@@ -804,6 +807,19 @@ func (h *ConfigHandler) UpdateConfig(c *gin.Context) {
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if req.AssetDiscovery != nil {
+		normalized, err := config.NormalizeAssetDiscoveryConfig(*req.AssetDiscovery)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		h.config.AssetDiscovery = normalized
+		h.logger.Info("更新资产发现配置",
+			zap.Int("scan_fresh_days", normalized.ScanFreshDays),
+			zap.Int("excluded_ip_ranges", len(normalized.ExcludedIPRanges)),
+		)
+	}
 
 	// 更新OpenAI配置
 	if req.AI != nil {
@@ -1768,6 +1784,7 @@ func (h *ConfigHandler) saveConfig() error {
 	}
 
 	updateAgentConfig(root, h.config.Agent)
+	updateAssetDiscoveryConfig(root, h.config.AssetDiscovery)
 	updateMCPConfig(root, h.config.MCP)
 	updateAIConfig(root, h.config.AI)
 	removeKeyFromMap(root.Content[0], "openai")
@@ -1827,6 +1844,24 @@ func (h *ConfigHandler) saveConfig() error {
 
 	h.logger.Info("配置已保存", zap.String("path", h.configPath))
 	return nil
+}
+
+func updateAssetDiscoveryConfig(doc *yaml.Node, cfg config.AssetDiscoveryConfig) {
+	root := doc.Content[0]
+	section := ensureMap(root, "asset_discovery")
+	setIntInMap(section, "scan_fresh_days", cfg.ScanFreshDays)
+	_, rangesNode := ensureKeyValue(section, "excluded_ip_ranges")
+	rangesNode.Kind = yaml.SequenceNode
+	rangesNode.Tag = "!!seq"
+	rangesNode.Style = 0
+	rangesNode.Content = nil
+	for _, rule := range cfg.ExcludedIPRanges {
+		item := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		setStringInMap(item, "cidr", rule.CIDR)
+		setStringInMap(item, "reason", rule.Reason)
+		setBoolInMap(item, "enabled", rule.Enabled)
+		rangesNode.Content = append(rangesNode.Content, item)
+	}
 }
 
 func loadYAMLDocument(path string) (*yaml.Node, error) {

@@ -7,6 +7,45 @@ import (
 	"testing"
 )
 
+func TestNormalizeAssetDiscoveryConfig(t *testing.T) {
+	got, err := NormalizeAssetDiscoveryConfig(AssetDiscoveryConfig{
+		ScanFreshDays: 7,
+		ExcludedIPRanges: []AssetDiscoveryExcludedIPRange{
+			{CIDR: "198.18.0.0/15", Reason: "代理映射地址", Enabled: true},
+			{CIDR: "198.18.0.1/15", Reason: "重复", Enabled: true},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.ExcludedIPRanges) != 1 {
+		t.Fatalf("got %d rules, want 1", len(got.ExcludedIPRanges))
+	}
+	if got.ExcludedIPRanges[0].CIDR != "198.18.0.0/15" {
+		t.Fatalf("got %s", got.ExcludedIPRanges[0].CIDR)
+	}
+}
+
+func TestNormalizeAssetDiscoveryConfigRejectsInvalidCIDR(t *testing.T) {
+	_, err := NormalizeAssetDiscoveryConfig(AssetDiscoveryConfig{
+		ScanFreshDays:    7,
+		ExcludedIPRanges: []AssetDiscoveryExcludedIPRange{{CIDR: "198.18.0.0/99", Enabled: true}},
+	})
+	if err == nil {
+		t.Fatal("invalid CIDR must fail")
+	}
+}
+
+func TestDefaultIncludesAssetDiscoveryPolicy(t *testing.T) {
+	cfg := Default()
+	if cfg.AssetDiscovery.ScanFreshDays != 7 {
+		t.Fatalf("ScanFreshDays=%d, want 7", cfg.AssetDiscovery.ScanFreshDays)
+	}
+	if len(cfg.AssetDiscovery.ExcludedIPRanges) != 1 || cfg.AssetDiscovery.ExcludedIPRanges[0].CIDR != "198.18.0.0/15" {
+		t.Fatalf("unexpected default ranges: %#v", cfg.AssetDiscovery.ExcludedIPRanges)
+	}
+}
+
 func TestEnsureLocalConfigCreatesFromExample(t *testing.T) {
 	dir := t.TempDir()
 	examplePath := filepath.Join(dir, "config.example.yaml")
