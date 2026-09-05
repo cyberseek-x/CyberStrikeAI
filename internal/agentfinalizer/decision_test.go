@@ -69,6 +69,23 @@ func TestDecideBlocksAwaitingHITLAndEmptyCandidate(t *testing.T) {
 	}
 }
 
+func TestDecideBlocksFormattingOnlyCandidate(t *testing.T) {
+	for _, candidate := range []string{"*", "---", "##", " • "} {
+		t.Run(candidate, func(t *testing.T) {
+			d := Decide(nil, Input{
+				Response:        candidate,
+				MCPExecutionIDs: []string{"run-completed"},
+			})
+			if d.Finalizable || d.Finalized {
+				t.Fatalf("formatting-only response should not finalize: %+v", d)
+			}
+			if d.Status != StatusBlocked || d.CompletionReason != ReasonEmptyResponse {
+				t.Fatalf("status/reason = %s/%s, want %s/%s", d.Status, d.CompletionReason, StatusBlocked, ReasonEmptyResponse)
+			}
+		})
+	}
+}
+
 func TestDecideBlocksWhenExecutionEvidenceIsRequiredButMissing(t *testing.T) {
 	d := Decide(nil, Input{
 		Response:                 "任务已处理完成。",

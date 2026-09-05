@@ -163,7 +163,7 @@ func New(cfg *config.Config, log *logger.Logger, configPath string) (*App, error
 
 	// 注册漏洞记录工具
 	registerVulnerabilityTools(mcpServer, db, log.Logger)
-	registerAssetTools(mcpServer, db, log.Logger)
+	registerAssetTools(mcpServer, db, cfg, log.Logger)
 	registerProjectFactTools(mcpServer, db, cfg, log.Logger)
 	registerVisionTools(mcpServer, cfg, log.Logger)
 
@@ -482,7 +482,7 @@ func New(cfg *config.Config, log *logger.Logger, configPath string) (*App, error
 	// 设置漏洞工具注册器（内置工具，必须设置）
 	vulnerabilityRegistrar := func() error {
 		registerVulnerabilityTools(mcpServer, db, log.Logger)
-		registerAssetTools(mcpServer, db, log.Logger)
+		registerAssetTools(mcpServer, db, cfg, log.Logger)
 		registerProjectFactTools(mcpServer, db, cfg, log.Logger)
 		registerVisionTools(mcpServer, cfg, log.Logger)
 		return nil

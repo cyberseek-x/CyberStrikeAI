@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -18,34 +19,88 @@ import (
 )
 
 type Config struct {
-	Version     string                `yaml:"version,omitempty" json:"version,omitempty"` // 前端显示的版本号，如 v1.3.3
-	Server      ServerConfig          `yaml:"server"`
-	Log         LogConfig             `yaml:"log"`
-	MCP         MCPConfig             `yaml:"mcp"`
-	AI          AIConfig              `yaml:"ai,omitempty" json:"ai,omitempty"`
-	OpenAI      OpenAIConfig          `yaml:"openai,omitempty" json:"openai,omitempty"`
-	FOFA        FofaConfig            `yaml:"fofa,omitempty" json:"fofa,omitempty"`
-	ZoomEye     SpaceSearchConfig     `yaml:"zoomeye,omitempty" json:"zoomeye,omitempty"`
-	Quake       SpaceSearchConfig     `yaml:"quake,omitempty" json:"quake,omitempty"`
-	Shodan      SpaceSearchConfig     `yaml:"shodan,omitempty" json:"shodan,omitempty"`
-	Agent       AgentConfig           `yaml:"agent"`
-	Hitl        HitlConfig            `yaml:"hitl,omitempty" json:"hitl,omitempty"`
-	Security    SecurityConfig        `yaml:"security"`
-	Database    DatabaseConfig        `yaml:"database"`
-	Auth        AuthConfig            `yaml:"auth"`
-	Audit       AuditConfig           `yaml:"audit,omitempty" json:"audit,omitempty"`
-	Monitor     MonitorConfig         `yaml:"monitor,omitempty" json:"monitor,omitempty"`
-	ExternalMCP ExternalMCPConfig     `yaml:"external_mcp,omitempty"`
-	Knowledge   KnowledgeConfig       `yaml:"knowledge,omitempty"`
-	C2          C2Config              `yaml:"c2,omitempty" json:"c2,omitempty"`                 // 内置 C2 总开关；未配置时默认启用
-	Robots      RobotsConfig          `yaml:"robots,omitempty" json:"robots,omitempty"`         // 企业微信/钉钉/飞书等机器人配置
-	RolesDir    string                `yaml:"roles_dir,omitempty" json:"roles_dir,omitempty"`   // 角色配置文件目录（新方式）
-	Roles       map[string]RoleConfig `yaml:"roles,omitempty" json:"roles,omitempty"`           // 向后兼容：支持在主配置文件中定义角色
-	SkillsDir   string                `yaml:"skills_dir,omitempty" json:"skills_dir,omitempty"` // Skills配置文件目录
-	AgentsDir   string                `yaml:"agents_dir,omitempty" json:"agents_dir,omitempty"` // 多代理子 Agent Markdown 定义目录（*.md，YAML front matter）
-	MultiAgent  MultiAgentConfig      `yaml:"multi_agent,omitempty" json:"multi_agent,omitempty"`
-	Project     ProjectConfig         `yaml:"project,omitempty" json:"project,omitempty"`
-	Vision      VisionConfig          `yaml:"vision,omitempty" json:"vision,omitempty"`
+	Version        string                `yaml:"version,omitempty" json:"version,omitempty"` // 前端显示的版本号，如 v1.3.3
+	Server         ServerConfig          `yaml:"server"`
+	Log            LogConfig             `yaml:"log"`
+	MCP            MCPConfig             `yaml:"mcp"`
+	AI             AIConfig              `yaml:"ai,omitempty" json:"ai,omitempty"`
+	OpenAI         OpenAIConfig          `yaml:"openai,omitempty" json:"openai,omitempty"`
+	FOFA           FofaConfig            `yaml:"fofa,omitempty" json:"fofa,omitempty"`
+	ZoomEye        SpaceSearchConfig     `yaml:"zoomeye,omitempty" json:"zoomeye,omitempty"`
+	Quake          SpaceSearchConfig     `yaml:"quake,omitempty" json:"quake,omitempty"`
+	Shodan         SpaceSearchConfig     `yaml:"shodan,omitempty" json:"shodan,omitempty"`
+	Agent          AgentConfig           `yaml:"agent"`
+	AssetDiscovery AssetDiscoveryConfig  `yaml:"asset_discovery,omitempty" json:"asset_discovery,omitempty"`
+	Hitl           HitlConfig            `yaml:"hitl,omitempty" json:"hitl,omitempty"`
+	Security       SecurityConfig        `yaml:"security"`
+	Database       DatabaseConfig        `yaml:"database"`
+	Auth           AuthConfig            `yaml:"auth"`
+	Audit          AuditConfig           `yaml:"audit,omitempty" json:"audit,omitempty"`
+	Monitor        MonitorConfig         `yaml:"monitor,omitempty" json:"monitor,omitempty"`
+	ExternalMCP    ExternalMCPConfig     `yaml:"external_mcp,omitempty"`
+	Knowledge      KnowledgeConfig       `yaml:"knowledge,omitempty"`
+	C2             C2Config              `yaml:"c2,omitempty" json:"c2,omitempty"`                 // 内置 C2 总开关；未配置时默认启用
+	Robots         RobotsConfig          `yaml:"robots,omitempty" json:"robots,omitempty"`         // 企业微信/钉钉/飞书等机器人配置
+	RolesDir       string                `yaml:"roles_dir,omitempty" json:"roles_dir,omitempty"`   // 角色配置文件目录（新方式）
+	Roles          map[string]RoleConfig `yaml:"roles,omitempty" json:"roles,omitempty"`           // 向后兼容：支持在主配置文件中定义角色
+	SkillsDir      string                `yaml:"skills_dir,omitempty" json:"skills_dir,omitempty"` // Skills配置文件目录
+	AgentsDir      string                `yaml:"agents_dir,omitempty" json:"agents_dir,omitempty"` // 多代理子 Agent Markdown 定义目录（*.md，YAML front matter）
+	MultiAgent     MultiAgentConfig      `yaml:"multi_agent,omitempty" json:"multi_agent,omitempty"`
+	Project        ProjectConfig         `yaml:"project,omitempty" json:"project,omitempty"`
+	Vision         VisionConfig          `yaml:"vision,omitempty" json:"vision,omitempty"`
+}
+
+const DefaultAssetScanFreshDays = 7
+
+type AssetDiscoveryExcludedIPRange struct {
+	CIDR    string `yaml:"cidr" json:"cidr"`
+	Reason  string `yaml:"reason,omitempty" json:"reason,omitempty"`
+	Enabled bool   `yaml:"enabled" json:"enabled"`
+}
+
+type AssetDiscoveryConfig struct {
+	ScanFreshDays    int                             `yaml:"scan_fresh_days" json:"scan_fresh_days"`
+	ExcludedIPRanges []AssetDiscoveryExcludedIPRange `yaml:"excluded_ip_ranges" json:"excluded_ip_ranges"`
+}
+
+func DefaultAssetDiscoveryConfig() AssetDiscoveryConfig {
+	return AssetDiscoveryConfig{
+		ScanFreshDays: DefaultAssetScanFreshDays,
+		ExcludedIPRanges: []AssetDiscoveryExcludedIPRange{{
+			CIDR: "198.18.0.0/15", Reason: "VPN 或代理映射地址", Enabled: true,
+		}},
+	}
+}
+
+func NormalizeAssetDiscoveryConfig(input AssetDiscoveryConfig) (AssetDiscoveryConfig, error) {
+	if input.ScanFreshDays == 0 {
+		input.ScanFreshDays = DefaultAssetScanFreshDays
+	}
+	if input.ScanFreshDays < 1 || input.ScanFreshDays > 3650 {
+		return AssetDiscoveryConfig{}, fmt.Errorf("asset_discovery.scan_fresh_days 必须在 1-3650 之间")
+	}
+	if input.ExcludedIPRanges == nil {
+		input.ExcludedIPRanges = DefaultAssetDiscoveryConfig().ExcludedIPRanges
+	}
+	seen := make(map[string]struct{}, len(input.ExcludedIPRanges))
+	normalized := make([]AssetDiscoveryExcludedIPRange, 0, len(input.ExcludedIPRanges))
+	for i, rule := range input.ExcludedIPRanges {
+		cidr := strings.TrimSpace(rule.CIDR)
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return AssetDiscoveryConfig{}, fmt.Errorf("asset_discovery.excluded_ip_ranges[%d].cidr 不是有效地址段: %s", i, cidr)
+		}
+		canonical := network.String()
+		if _, exists := seen[canonical]; exists {
+			continue
+		}
+		seen[canonical] = struct{}{}
+		rule.CIDR = canonical
+		rule.Reason = strings.TrimSpace(rule.Reason)
+		normalized = append(normalized, rule)
+	}
+	input.ExcludedIPRanges = normalized
+	return input, nil
 }
 
 type EnsureLocalConfigResult struct {
@@ -1081,6 +1136,9 @@ type DatabaseConfig struct {
 
 type AgentConfig struct {
 	MaxIterations                      int `yaml:"max_iterations" json:"max_iterations"`
+	TaskTimeoutMinutes                 int `yaml:"task_timeout_minutes" json:"task_timeout_minutes"`                                     // 单代理单次任务总预算（分钟），包含调查和收尾报告；0 使用默认 15
+	FinalizationReservedMinutes        int `yaml:"finalization_reserved_minutes" json:"finalization_reserved_minutes"`                   // 单代理为收尾报告预留的分钟数；0 使用默认 3
+	FinalizationMaxIterations          int `yaml:"finalization_max_iterations" json:"finalization_max_iterations"`                       // 无工具收尾报告最多模型轮次；0 使用默认 2
 	ToolTimeoutMinutes                 int `yaml:"tool_timeout_minutes" json:"tool_timeout_minutes"`                                     // 单次工具执行最大时长（分钟），超时自动终止，防止长时间挂起；0 表示不限制（不推荐）
 	ToolWaitTimeoutSeconds             int `yaml:"tool_wait_timeout_seconds" json:"tool_wait_timeout_seconds"`                           // 工具本轮等待秒数；到时返回 execution_id，worker 继续后台执行；0 表示等到完成
 	ExternalMCPMaxConcurrentPerServer  int `yaml:"external_mcp_max_concurrent_per_server" json:"external_mcp_max_concurrent_per_server"` // 单个外部 MCP server 同时运行的工具数；0 表示默认 2
@@ -1447,6 +1505,11 @@ func Load(path string) (*Config, error) {
 		cfg.Audit.MaxDetailBytes = 8192
 	}
 	cfg.NormalizeAIProviderProfiles()
+	assetDiscovery, err := NormalizeAssetDiscoveryConfig(cfg.AssetDiscovery)
+	if err != nil {
+		return nil, err
+	}
+	cfg.AssetDiscovery = assetDiscovery
 	cfg.ApplyDefaultAIChannel()
 	if err := validateOpenAIOutputLimits(cfg.OpenAI); err != nil {
 		return nil, err
@@ -1947,7 +2010,10 @@ func Default() *Config {
 		},
 		OpenAI: OpenAIConfig{},
 		Agent: AgentConfig{
-			MaxIterations:                      30,  // 默认最大迭代次数
+			MaxIterations:                      20,  // 默认调查最多 20 次模型调用
+			TaskTimeoutMinutes:                 15,  // 单代理单次任务总预算 15 分钟
+			FinalizationReservedMinutes:        3,   // 最后 3 分钟只生成报告
+			FinalizationMaxIterations:          2,   // 收尾报告最多 2 次模型调用
 			ToolTimeoutMinutes:                 10,  // 单次工具执行默认最多 10 分钟，避免异常长时间占用
 			ToolWaitTimeoutSeconds:             60,  // 外部 MCP 工具单轮最多等待 60 秒，超时后返回 execution_id 可继续等待
 			ExternalMCPMaxConcurrentPerServer:  2,   // 单个外部 MCP server 默认最多 2 个工具同时执行
@@ -1956,6 +2022,7 @@ func Default() *Config {
 			ExternalMCPCircuitCooldownSeconds:  60,  // 熔断默认冷却 60 秒
 			ShellNoOutputTimeoutSeconds:        300, // execute/exec 无新输出空闲终止（秒）；-1 关闭
 		},
+		AssetDiscovery: DefaultAssetDiscoveryConfig(),
 		Security: SecurityConfig{
 			Tools:    []ToolConfig{}, // 工具配置应该从 config.yaml 或 tools/ 目录加载
 			ToolsDir: "tools",        // 默认工具目录

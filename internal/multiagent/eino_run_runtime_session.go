@@ -304,11 +304,12 @@ func (s *einoRunRuntimeSession) initRecoveryRuntime() {
 		Pending:        pending,
 	})
 	runErrorHandler := newEinoRunErrorHandler(einoRunErrorHandlerConfig{
-		ConversationID:       s.conversationID,
-		OrchMode:             s.orchMode,
-		Progress:             s.progress,
-		Pending:              pending,
-		NativeCancelFallback: s.nativeCancelCauseOrCanceled,
+		ConversationID:        s.conversationID,
+		OrchMode:              s.orchMode,
+		Progress:              s.progress,
+		Pending:               pending,
+		NativeCancelFallback:  s.nativeCancelCauseOrCanceled,
+		RecoverIterationLimit: s.args.RecoverIterationLimit,
 	})
 	s.runRecoveryHandler = newEinoRunRecoveryHandler(einoRunRecoveryHandlerConfig{
 		ConversationID:  s.conversationID,

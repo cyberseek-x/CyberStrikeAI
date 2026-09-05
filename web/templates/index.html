@@ -1993,6 +1993,28 @@
                         <div class="modal-header"><div><h2 id="asset-scan-title" data-i18n="assets.scanTitle">扫描资产</h2><p id="asset-scan-subtitle" class="asset-page-subtitle"></p></div><span class="modal-close" onclick="closeAssetScanModal()">&times;</span></div>
                         <div class="modal-body">
                             <div id="asset-scan-targets" class="asset-scan-targets"></div>
+                            <div id="asset-scan-task-options" class="asset-scan-task-options" hidden>
+                                <label class="asset-scan-option-field" for="asset-scan-agent-mode">
+                                    <span data-i18n="assets.scanAgentMode">执行模式</span>
+                                    <select id="asset-scan-agent-mode">
+                                        <option value="eino_single" data-i18n="chat.agentModeEinoSingle">Eino 单代理（ADK）</option>
+                                        <option value="deep" data-i18n="chat.agentModeDeep">Deep（DeepAgent）</option>
+                                        <option value="plan_execute" data-i18n="chat.agentModePlanExecuteLabel">Plan-Execute</option>
+                                        <option value="supervisor" data-i18n="chat.agentModeSupervisorLabel">Supervisor</option>
+                                    </select>
+                                    <small id="asset-scan-agent-mode-hint" class="asset-scan-option-hint" data-i18n="assets.scanAgentModeHint">多代理模式需先在系统设置中启用。</small>
+                                </label>
+                                <label class="asset-scan-option-field" for="asset-scan-role">
+                                    <span data-i18n="assets.scanRole">专家角色</span>
+                                    <select id="asset-scan-role"><option value="信息收集" data-i18n="assets.scanDefaultRole">信息收集</option></select>
+                                    <small class="asset-scan-option-hint" data-i18n="assets.scanRoleHint">任务将使用所选角色的提示词和工具配置。</small>
+                                </label>
+                                <label class="asset-scan-option-field" for="asset-scan-concurrency">
+                                    <span data-i18n="assets.scanConcurrency">并行任务数</span>
+                                    <input id="asset-scan-concurrency" type="number" inputmode="numeric" min="1" max="8" value="2">
+                                    <small class="asset-scan-option-hint" data-i18n="assets.scanConcurrencyHint">同时运行的资产任务数量（1～8），扫描任务建议设置为 1～2。</small>
+                                </label>
+                            </div>
                             <label class="asset-scan-prompt-label" for="asset-scan-prompt" data-i18n="assets.userPrompt">用户提示词</label>
                             <textarea id="asset-scan-prompt" class="asset-scan-prompt" rows="7"></textarea>
                             <p id="asset-scan-hint" class="form-hint" data-i18n="assets.promptHint">可使用 &#123;&#123;asset_id&#125;&#125;、&#123;&#123;target&#125;&#125;、&#123;&#123;host&#125;&#125;、&#123;&#123;ip&#125;&#125;、&#123;&#123;domain&#125;&#125;、&#123;&#123;port&#125;&#125; 占位符；创建任务时会为每个资产生成一条任务。</p>
@@ -3763,6 +3785,17 @@
                                         <div class="form-group">
                                             <label for="agent-max-iterations" data-i18n="settingsBasic.maxIterations">最大迭代次数</label>
                                             <input type="number" id="agent-max-iterations" min="1" data-i18n="settingsBasic.iterationsPlaceholder" data-i18n-attr="placeholder" placeholder="30" />
+                                        </div>
+                                        <div class="form-group asset-discovery-settings">
+                                            <label for="asset-discovery-fresh-days" data-i18n="settingsBasic.assetDiscoveryFreshDays">扫描结果复用天数</label>
+                                            <input type="number" id="asset-discovery-fresh-days" min="1" max="3650" step="1" value="7" />
+                                            <small class="form-hint" data-i18n="settingsBasic.assetDiscoveryFreshDaysHint">同一项目内，在此期限内已扫描的资产默认复用结果，避免重复主动探测。</small>
+                                            <div class="asset-discovery-range-heading">
+                                                <span data-i18n="settingsBasic.assetDiscoveryExcludedRanges">排除地址段</span>
+                                                <button type="button" class="btn btn-secondary btn-sm" onclick="addAssetDiscoveryExcludedRange()" data-i18n="settingsBasic.assetDiscoveryAddRange">添加地址段</button>
+                                            </div>
+                                            <small class="form-hint" data-i18n="settingsBasic.assetDiscoveryExcludedRangesHint">命中启用规则的 IP 不会作为真实公网地址入库；仍可保留已经验证的域名端点。</small>
+                                            <div id="asset-discovery-excluded-ranges" class="asset-discovery-range-list"></div>
                                         </div>
                                         <div class="form-group">
                                             <label for="agent-tool-wait-timeout-seconds" data-i18n="settingsBasic.toolWaitTimeoutSeconds">外部 MCP 单轮等待秒数</label>

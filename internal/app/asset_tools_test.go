@@ -7,12 +7,64 @@ import (
 	"testing"
 
 	"cyberstrike-ai/internal/authctx"
+	"cyberstrike-ai/internal/config"
 	"cyberstrike-ai/internal/database"
 	"cyberstrike-ai/internal/mcp"
 	"cyberstrike-ai/internal/mcp/builtin"
 
 	"go.uber.org/zap"
 )
+
+func TestApplyAssetDiscoveryPolicyFiltersMappedIPAndKeepsDomain(t *testing.T) {
+	asset := &database.Asset{Domain: "example.com", IP: "198.18.1.8", Port: 443, Protocol: "https"}
+	match, err := applyAssetDiscoveryPolicy(asset, config.AssetDiscoveryConfig{
+		ScanFreshDays:    7,
+		ExcludedIPRanges: []config.AssetDiscoveryExcludedIPRange{{CIDR: "198.18.0.0/15", Reason: "代理映射地址", Enabled: true}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asset.IP != "" {
+		t.Fatalf("filtered IP remains: %s", asset.IP)
+	}
+	if match == nil || match.CIDR != "198.18.0.0/15" {
+		t.Fatalf("unexpected match: %#v", match)
+	}
+}
+
+func TestCreateAssetBindsConversationProject(t *testing.T) {
+	db, err := database.NewDB(filepath.Join(t.TempDir(), "asset-project-bind.db"), zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	project, err := db.CreateProject(&database.Project{Name: "Project A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversation, err := db.CreateConversation("discovery", database.ConversationCreateMeta{ProjectID: project.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal := authctx.NewPrincipal("admin", "admin", database.RBACScopeAll, map[string]bool{"asset:read": true, "asset:write": true})
+	ctx := authctx.WithPrincipal(mcp.WithMCPConversationID(context.Background(), conversation.ID), principal)
+	server := mcp.NewServer(zap.NewNop())
+	server.SetToolAuthorizer(mcpToolAuthorizer(db))
+	registerAssetTools(server, db, config.Default(), zap.NewNop())
+	result, _, err := server.CallTool(ctx, builtin.ToolCreateAsset, map[string]interface{}{
+		"domain": "example.com", "port": 443, "protocol": "https",
+	})
+	if err != nil || result == nil || result.IsError {
+		t.Fatalf("create asset result=%#v err=%v", result, err)
+	}
+	assets, total, err := db.ListAssets(10, 0, database.AssetListFilter{}, database.RBACListAccess{Scope: database.RBACScopeAll})
+	if err != nil || total != 1 || len(assets) != 1 {
+		t.Fatalf("assets total=%d len=%d err=%v", total, len(assets), err)
+	}
+	if assets[0].ProjectID != project.ID {
+		t.Fatalf("ProjectID=%q, want %q", assets[0].ProjectID, project.ID)
+	}
+}
 
 func TestAssetToolsCRUDQueryAndPageLimit(t *testing.T) {
 	db, err := database.NewDB(filepath.Join(t.TempDir(), "asset-tools.db"), zap.NewNop())
@@ -30,7 +82,7 @@ func TestAssetToolsCRUDQueryAndPageLimit(t *testing.T) {
 	ctx := authctx.WithPrincipal(context.Background(), principal)
 	server := mcp.NewServer(zap.NewNop())
 	server.SetToolAuthorizer(mcpToolAuthorizer(db))
-	registerAssetTools(server, db, zap.NewNop())
+	registerAssetTools(server, db, config.Default(), zap.NewNop())
 
 	wantTools := map[string]bool{
 		builtin.ToolCreateAsset: false, builtin.ToolGetAsset: false, builtin.ToolQueryAssets: false,
@@ -171,7 +223,7 @@ func TestAssetReadToolsRespectConversationProjectScope(t *testing.T) {
 	ctx := authctx.WithPrincipal(context.Background(), principal)
 	server := mcp.NewServer(zap.NewNop())
 	server.SetToolAuthorizer(mcpToolAuthorizer(db))
-	registerAssetTools(server, db, zap.NewNop())
+	registerAssetTools(server, db, config.Default(), zap.NewNop())
 
 	boundCtx := mcp.WithMCPConversationID(ctx, bound.ID)
 	result, _, err := server.CallTool(boundCtx, builtin.ToolQueryAssets, map[string]interface{}{})

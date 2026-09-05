@@ -118,7 +118,10 @@ shodan:
 # Agent 配置
 # 达到最大迭代次数时，AI 会自动总结测试结果
 agent:
-  max_iterations: 12000 # 全局最大迭代次数（单代理 / Deep / Supervisor / Plan-Execute 主执行器 / 子代理均沿用；agents/*.md 中 max_iterations>0 可单独覆盖）
+  max_iterations: 20 # 全局最大迭代次数（单代理 / Deep / Supervisor / Plan-Execute 主执行器 / 子代理均沿用；agents/*.md 中 max_iterations>0 可单独覆盖）
+  task_timeout_minutes: 15 # Eino 单代理单次任务总预算（分钟），包含调查和收尾报告
+  finalization_reserved_minutes: 3 # 从总预算中为无工具收尾报告预留的时间（分钟）
+  finalization_max_iterations: 2 # 收尾报告最多模型轮次；报告阶段不再挂载安全工具
   tool_timeout_minutes: 60 # 单次工具执行最大时长（分钟），超时自动终止；0 表示不限制（不推荐，易出现长时间挂起）
   tool_wait_timeout_seconds: 300 # 工具本轮最多等待（秒）；到时返回 execution_id，worker 继续后台执行，可用 wait_tool_execution 继续等待；0=等到完成
   external_mcp_max_concurrent_per_server: 5 # 单个外部 MCP server 同时运行的工具数；0=默认2；负数=不限制
@@ -130,6 +133,13 @@ agent:
   # system_prompt_path: prompts/single-agent.md # 可选：单代理系统提示文件（相对本配置文件所在目录）；非空且可读时替换内置提示
 
   system_prompt_path: ""
+# 资产发现策略（可在系统设置中修改）
+asset_discovery:
+  scan_fresh_days: 7 # 同一项目内在此天数内已扫描的资产默认复用结果
+  excluded_ip_ranges:
+    - cidr: 198.18.0.0/15
+      reason: VPN 或代理映射地址
+      enabled: true
 # 人机协同（HITL）全局白名单：此处列出的工具始终免审批，与对话页「白名单工具（免审批，逗号分隔）」合并为并集；侧栏「应用」可合并写入本列表并立即生效。
 # 非白名单工具在审批方=审计 Agent 时，按会话 HITL 模式选用提示词：
 #   approval → audit_agent_prompt

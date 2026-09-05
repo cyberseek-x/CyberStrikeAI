@@ -33,6 +33,41 @@ function settingsEscapeJsStringAttr(text) {
     return settingsEscapeAttr(settingsEscapeJsString(text));
 }
 
+function renderAssetDiscoveryExcludedRanges(ranges) {
+    const container = document.getElementById('asset-discovery-excluded-ranges');
+    if (!container) return;
+    container.innerHTML = '';
+    const normalized = Array.isArray(ranges) ? ranges : [];
+    normalized.forEach((rule) => addAssetDiscoveryExcludedRange(rule));
+}
+
+function addAssetDiscoveryExcludedRange(rule = {}) {
+    const container = document.getElementById('asset-discovery-excluded-ranges');
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'asset-discovery-range-row';
+    row.innerHTML = `
+        <input type="text" class="asset-excluded-cidr" value="${settingsEscapeAttr(rule.cidr || '')}" placeholder="198.18.0.0/15" aria-label="CIDR" />
+        <input type="text" class="asset-excluded-reason" value="${settingsEscapeAttr(rule.reason || '')}" placeholder="${settingsEscapeAttr(settingsT('settingsBasic.assetDiscoveryReasonPlaceholder', '原因说明'))}" aria-label="${settingsEscapeAttr(settingsT('settingsBasic.assetDiscoveryReasonPlaceholder', '原因说明'))}" />
+        <label class="asset-discovery-range-enabled">
+            <input type="checkbox" class="asset-excluded-enabled" ${rule.enabled === false ? '' : 'checked'} />
+            <span>${settingsEscapeAttr(settingsT('settingsBasic.assetDiscoveryRangeEnabled', '启用'))}</span>
+        </label>
+        <button type="button" class="asset-discovery-range-delete" aria-label="${settingsEscapeAttr(settingsT('settingsBasic.assetDiscoveryDeleteRange', '删除地址段'))}">×</button>`;
+    row.querySelector('.asset-discovery-range-delete').addEventListener('click', () => row.remove());
+    container.appendChild(row);
+}
+
+function readAssetDiscoveryExcludedRanges() {
+    return Array.from(document.querySelectorAll('#asset-discovery-excluded-ranges .asset-discovery-range-row'))
+        .map((row) => ({
+            cidr: row.querySelector('.asset-excluded-cidr')?.value.trim() || '',
+            reason: row.querySelector('.asset-excluded-reason')?.value.trim() || '',
+            enabled: row.querySelector('.asset-excluded-enabled')?.checked === true
+        }))
+        .filter((rule) => rule.cidr !== '');
+}
+
 const settingsCustomSelects = new Map();
 let settingsCustomSelectsDocBound = false;
 
@@ -820,6 +855,10 @@ async function loadConfig(loadTools = true, options = {}) {
         
         // 填充Agent配置
         document.getElementById('agent-max-iterations').value = currentConfig.agent.max_iterations || 30;
+        const assetDiscovery = currentConfig.asset_discovery || {};
+        const assetFreshDaysEl = document.getElementById('asset-discovery-fresh-days');
+        if (assetFreshDaysEl) assetFreshDaysEl.value = String(assetDiscovery.scan_fresh_days || 7);
+        renderAssetDiscoveryExcludedRanges(Array.isArray(assetDiscovery.excluded_ip_ranges) ? assetDiscovery.excluded_ip_ranges : []);
         const toolWaitTimeoutEl = document.getElementById('agent-tool-wait-timeout-seconds');
         if (toolWaitTimeoutEl) {
             const v = currentConfig.agent.tool_wait_timeout_seconds;
@@ -2040,6 +2079,10 @@ async function applySettings() {
                 external_mcp_max_concurrent_total: parseInt(document.getElementById('agent-external-mcp-concurrency-total')?.value || '16', 10) || 0,
                 external_mcp_circuit_failure_threshold: parseInt(document.getElementById('agent-external-mcp-circuit-threshold')?.value || '3', 10) || 0,
                 external_mcp_circuit_cooldown_seconds: Math.max(0, parseInt(document.getElementById('agent-external-mcp-circuit-cooldown')?.value || '60', 10) || 0)
+            },
+            asset_discovery: {
+                scan_fresh_days: Math.max(1, parseInt(document.getElementById('asset-discovery-fresh-days')?.value || '7', 10) || 7),
+                excluded_ip_ranges: readAssetDiscoveryExcludedRanges()
             },
             multi_agent: (function () {
                 const peRaw = document.getElementById('multi-agent-pe-loop')?.value;

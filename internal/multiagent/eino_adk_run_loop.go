@@ -105,6 +105,13 @@ func isEinoIterationLimitError(err error) bool {
 		strings.Contains(msg, "达到最大迭代")
 }
 
+// IsEinoIterationLimitError reports whether an ADK run stopped because its
+// configured model-iteration budget was exhausted. The single-agent handler
+// uses this signal to switch from investigation to a tool-free report pass.
+func IsEinoIterationLimitError(err error) bool {
+	return isEinoIterationLimitError(err)
+}
+
 // einoADKRunLoopArgs 将 Eino adk.Runner 事件循环从 RunDeepAgent / RunEinoSingleChatModelAgent 中抽出复用。
 type einoADKRunLoopArgs struct {
 	OrchMode             string
@@ -152,6 +159,10 @@ type einoADKRunLoopArgs struct {
 
 	// TurnLoopInterruptTimeout 仅供测试/特殊运行时覆盖；0 使用 EinoTurnLoopRuntime 默认值。
 	TurnLoopInterruptTimeout time.Duration
+
+	// RecoverIterationLimit 表示调用方会把调查轮次耗尽转换为收尾阶段；
+	// 开启时运行循环只上报预算耗尽事件，不提前展示终态错误。
+	RecoverIterationLimit bool
 }
 
 func runEinoADKAgentLoop(ctx context.Context, args *einoADKRunLoopArgs, baseMsgs []adk.Message) (*RunResult, error) {

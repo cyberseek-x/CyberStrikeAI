@@ -152,6 +152,9 @@ func (h *AgentHandler) prepareMultiAgentSession(req *ChatRequest, c *gin.Context
 			roleTools = role.Tools
 		}
 	}
+	if discoveryContext := h.assetDiscoveryContext(projectID, req.Role, req.Message); discoveryContext != "" {
+		finalMessage += "\n\n" + discoveryContext
+	}
 
 	var savedPaths []string
 	if len(req.Attachments) > 0 {

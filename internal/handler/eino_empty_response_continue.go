@@ -14,12 +14,20 @@ import (
 
 // rebindEinoRunningTask 中断并继续 / 空正文续跑：重建 cancel 链与超时 ctx，保持任务 running。
 func (h *AgentHandler) rebindEinoRunningTask(parent context.Context, conversationID string, timeoutCancel context.CancelFunc) (context.Context, context.CancelCauseFunc, context.Context, context.CancelFunc) {
+	return h.rebindEinoRunningTaskWithTimeout(parent, conversationID, timeoutCancel, 600*time.Minute)
+}
+
+// rebindEinoRunningTaskWithTimeout 重建续跑上下文，但不突破调用方剩余预算。
+func (h *AgentHandler) rebindEinoRunningTaskWithTimeout(parent context.Context, conversationID string, timeoutCancel context.CancelFunc, timeout time.Duration) (context.Context, context.CancelCauseFunc, context.Context, context.CancelFunc) {
 	if timeoutCancel != nil {
 		timeoutCancel()
 	}
+	if timeout <= 0 {
+		timeout = time.Nanosecond
+	}
 	baseCtx, cancelWithCause := context.WithCancelCause(detachedAgentContext(parent))
 	h.tasks.BindTaskCancel(conversationID, cancelWithCause)
-	taskCtx, newTimeoutCancel := context.WithTimeout(baseCtx, 600*time.Minute)
+	taskCtx, newTimeoutCancel := context.WithTimeout(baseCtx, timeout)
 	h.tasks.UpdateTaskStatus(conversationID, "running")
 	return baseCtx, cancelWithCause, taskCtx, newTimeoutCancel
 }
