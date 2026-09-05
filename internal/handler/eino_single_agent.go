@@ -194,6 +194,7 @@ func (h *AgentHandler) EinoSingleAgentLoopStream(c *gin.Context) {
 	var emptyResponseContinueAttempt int
 	var finalizationAutoContinueAttempt int
 	var forcedReportAttempted bool
+	var assetPersistenceAttempted bool
 	activeRunCfg := runCfg
 	activeRoleTools := roleTools
 	activeDeadline := investigationDeadline
@@ -281,6 +282,31 @@ func (h *AgentHandler) EinoSingleAgentLoopStream(c *gin.Context) {
 			if cancelled := h.cleanupPendingToolExecutionsAfterIteration(taskCtx, conversationID, decision, progressCallback); len(cancelled) > 0 {
 				autoCancelledPendingExecutionIDs = mergeMCPExecutionIDLists(autoCancelledPendingExecutionIDs, cancelled)
 				decision = h.decideAgentRunForDeliveryWithPolicy(conversationID, assistantMessageID, "eino_single", result, cumulativeMCPExecutionIDs, requestRequiresExecutionEvidence(&req))
+			}
+			persistenceState := inspectAssetPersistenceState(h.db, cumulativeMCPExecutionIDs, isAssetDiscoveryRequest(req.Role, req.Message), assetPersistenceAttempted)
+			if !forcedReportAttempted && persistenceState.ShouldRun() {
+				assetPersistenceAttempted = true
+				h.persistEinoAgentTraceForResume(conversationID, result)
+				if hist, histErr := h.loadHistoryFromAgentTrace(conversationID); histErr == nil && len(hist) > 0 {
+					curHistory = hist
+				} else if h.logger != nil {
+					h.logger.Warn("资产归档阶段恢复轨迹失败，将使用当前历史", zap.String("conversationId", conversationID), zap.Error(histErr))
+				}
+				curFinalMessage = assetPersistenceInstruction(h.conversationProjectID(conversationID))
+				activeRunCfg, activeRoleTools = buildEinoSingleAssetPersistenceRun(runCfg, budget.finalizationMaxIterations)
+				mainIterationOffset += segmentMainIterationMax
+				timeoutCancel()
+				remaining := time.Until(activeDeadline)
+				if remaining <= 0 {
+					remaining = budget.finalization
+				}
+				baseCtx, cancelWithCause, taskCtx, timeoutCancel = h.rebindEinoRunningTaskWithTimeout(taskCtx, conversationID, timeoutCancel, remaining)
+				progressCallback("asset_persistence", "发现结果尚未归档，正在写入当前项目资产库…", map[string]interface{}{
+					"conversationId": conversationID,
+					"attempt":        1,
+					"maxAttempts":    1,
+				})
+				continue
 			}
 			if !forcedReportAttempted && shouldForceEinoSingleReportAfterDecision(decision) {
 				forcedReportAttempted = true
@@ -534,6 +560,7 @@ func (h *AgentHandler) EinoSingleAgentLoop(c *gin.Context) {
 	var emptyResponseContinueAttempt int
 	var finalizationAutoContinueAttempt int
 	var forcedReportAttempted bool
+	var assetPersistenceAttempted bool
 	activeRunCfg := runCfg
 	activeRoleTools := prep.RoleTools
 	var cumulativeMCPExecutionIDs []string
@@ -603,6 +630,30 @@ func (h *AgentHandler) EinoSingleAgentLoop(c *gin.Context) {
 		if cancelled := h.cleanupPendingToolExecutionsAfterIteration(taskCtx, prep.ConversationID, decision, progressCallback); len(cancelled) > 0 {
 			autoCancelledPendingExecutionIDs = mergeMCPExecutionIDLists(autoCancelledPendingExecutionIDs, cancelled)
 			decision = h.decideAgentRunForDeliveryWithPolicy(prep.ConversationID, prep.AssistantMessageID, "eino_single", result, cumulativeMCPExecutionIDs, requestRequiresExecutionEvidence(&req))
+		}
+		persistenceState := inspectAssetPersistenceState(h.db, cumulativeMCPExecutionIDs, isAssetDiscoveryRequest(req.Role, req.Message), assetPersistenceAttempted)
+		if !forcedReportAttempted && persistenceState.ShouldRun() {
+			assetPersistenceAttempted = true
+			h.persistEinoAgentTraceForResume(prep.ConversationID, result)
+			if hist, histErr := h.loadHistoryFromAgentTrace(prep.ConversationID); histErr == nil && len(hist) > 0 {
+				curHist = hist
+			} else if h.logger != nil {
+				h.logger.Warn("资产归档阶段恢复轨迹失败，将使用当前历史", zap.String("conversationId", prep.ConversationID), zap.Error(histErr))
+			}
+			curMsg = assetPersistenceInstruction(h.conversationProjectID(prep.ConversationID))
+			activeRunCfg, activeRoleTools = buildEinoSingleAssetPersistenceRun(runCfg, budget.finalizationMaxIterations)
+			timeoutCancel()
+			taskCtx, timeoutCancel = context.WithTimeout(baseCtx, budget.finalization)
+			progressCallback = h.createProgressCallback(taskCtx, cancelWithCause, prep.ConversationID, prep.AssistantMessageID, progressCallbackRaw)
+			taskCtx = multiagent.WithHITLToolInterceptor(taskCtx, func(ctx context.Context, toolName, arguments string) (string, error) {
+				return h.interceptHITLForEinoTool(ctx, cancelWithCause, prep.ConversationID, prep.AssistantMessageID, nil, toolName, arguments)
+			})
+			progressCallback("asset_persistence", "发现结果尚未归档，正在写入当前项目资产库…", map[string]interface{}{
+				"conversationId": prep.ConversationID,
+				"attempt":        1,
+				"maxAttempts":    1,
+			})
+			continue
 		}
 		if !forcedReportAttempted && shouldForceEinoSingleReportAfterDecision(decision) {
 			forcedReportAttempted = true
